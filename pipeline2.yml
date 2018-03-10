@@ -100,10 +100,10 @@ jobs:
       params:
         channel: '#concourse'
         text: |
-          'herzaugen'
+          :herzaugen:
     on_failure:
       put: slack-alert
       params:
         channel: '#concourse'
         text: |
-          'zornig'
+          :zornig:
