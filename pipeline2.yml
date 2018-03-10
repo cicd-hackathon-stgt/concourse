@@ -1,0 +1,109 @@
+---
+resource_types:
+  - name: artifactory
+    type: docker-image
+    source:
+      repository: pivotalservices/artifactory-resource
+  - name: slack-notification
+    type: docker-image
+    source:
+      repository: cfcommunity/slack-notification-resource
+      tag: latest
+resources:
+- name: git-repo
+  type: git
+  source:
+    uri: https://github.com/hikkoiri/concoursetest.git
+    branch: master
+- name: file-repository
+  type: artifactory
+  source:
+    endpoint: https://hohcicd.jfrog.io/hohcicd
+    repository: "/concoursetest"
+    regex: "tmp-(?<version>.*).txt"
+    username: concourse
+    password: concourser0cks
+- name: slack-alert
+  type: slack-notification
+  source:
+    url: https://hooks.slack.com/services/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
+jobs:
+- name: Upload_files_to_repo
+  public: true
+  plan:
+  - get: git-repo
+    trigger: true
+  - task: hello-world
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source: {repository: busybox}
+      inputs:
+        - name: git-repo
+      run:
+        path: echo
+        args: [Pushed to artifactory]
+  - put: file-repository
+    params: { file: git-repo/tmp-*.txt }
+- name: Load_file_from_repo
+  plan:
+  - get: file-repository
+    passed: [Upload_files_to_repo]
+    trigger: true
+  - task: use-new-file
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source:
+          repository: ubuntu
+      inputs:
+      - name: file-repository
+      run:
+        path: sh
+        args:
+          - -exc
+          - cat ./file-repository/tmp-*.txt
+- name: Random Number Gen
+  plan:
+  - get: git-repo
+    passed: [Upload_files_to_repo]
+    trigger: true
+  - task: generate-number
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source:
+          repository: ubuntu
+      outputs:
+      - name: output_repository
+      run:
+        path: sh
+        args:
+          - -exc
+          - echo $(( ( RANDOM % 10 )  + 1 )) > output_repository/number.txt
+  - task: evaluate-number
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source:
+          repository: ubuntu
+      inputs:
+      - name: git-repo
+      run:
+        path: ./git-repo/readRandomNumber.sh
+    on_success:
+      put: slack-alert
+      params:
+        channel: '#concourse'
+        text: |
+          'herzaugen'
+    on_failure:
+      put: slack-alert
+      params:
+        channel: '#concourse'
+        text: |
+          'zornig'
