@@ -4,6 +4,11 @@ resource_types:
     type: docker-image
     source:
       repository: pivotalservices/artifactory-resource
+  - name: slack-notification
+    type: docker-image
+    source:
+      repository: cfcommunity/slack-notification-resource
+      tag: latest
 resources:
 - name: git-repo
   type: git
@@ -18,8 +23,12 @@ resources:
     regex: "tmp-(?<version>.*).txt"
     username: concourse
     password: concourser0cks
+- name: slack-alert
+  type: slack-notification
+  source:
+    url: https://hooks.slack.com/services/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
 jobs:
-- name: Upload files to repo
+- name: Upload_files_to_repo
   public: true
   plan:
   - get: git-repo
@@ -36,4 +45,30 @@ jobs:
         path: echo
         args: [Pushed to artifactory]
   - put: file-repository
-    params: { file: git-repo/tmp-1.0.0.txt }
+    params: { file: git-repo/tmp-*.txt }
+- name: Load file from repo
+  plan:
+  - get: file-repository
+    passed: [Upload_files_to_repo]
+    trigger: true
+  - task: use-new-file
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source:
+          repository: ubuntu
+      inputs:
+      - name: file-repository
+      run:
+        path: sh
+        args:
+          - -exc
+          - cat ./file-repository/tmp-*.txt
+- name: Spam Bot
+  plan:
+  - put: slack-alert
+    params:
+      channel: '#concourse'
+      text: |
+        Hallo
