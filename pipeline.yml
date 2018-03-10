@@ -1,0 +1,39 @@
+---
+resource_types:
+  - name: artifactory
+    type: docker-image
+    source:
+      repository: pivotalservices/artifactory-resource
+resources:
+- name: git-repo
+  type: git
+  source:
+    uri: https://github.com/hikkoiri/concoursetest.git
+    branch: master
+- name: file-repository
+  type: artifactory
+  source:
+    endpoint: https://hohcicd.jfrog.io/hohcicd
+    repository: "/concoursetest"
+    regex: "tmp-(?<version>.*).txt"
+    username: concourse
+    password: concourser0cks
+jobs:
+- name: Upload files to repo
+  public: true
+  plan:
+  - get: git-repo
+    trigger: true
+  - task: hello-world
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source: {repository: busybox}
+      inputs:
+        - name: git-repo
+      run:
+        path: echo
+        args: [Pushed to artifactory]
+  - put: file-repository
+    params: { file: git-repo/tmp-1.0.0.txt }
